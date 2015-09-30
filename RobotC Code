@@ -1,0 +1,200 @@
+//Automated Gumball Sorting System
+//Coded in RobotC
+
+int colourCounter[5]={0,0,0,0,0};
+//global array: 0=discard, 1=blue, 2=green, 3=yellow, 4=red
+
+void gumballRelease()
+{
+	nMotorEncoder[motorC]=0;
+	//trapdoor
+	nMotorEncoder[motorB]=0;
+	//arm
+
+	motor[motorB]=5;
+	while (nMotorEncoder[motorB]<25)
+      {}
+	//arm opens to relase ball into tray
+
+	motor[motorB]=-5;
+	while (nMotorEncoder[motorB]>0)
+	{}
+	motor[motorB]=0;
+	//arm closes
+
+	motor[motorC]=5;
+	while (nMotorEncoder[motorC]<25)
+	{}
+	//trapdoor opens to relase ball into chute
+
+	motor[motorC]=-8;
+	while (nMotorEncoder[motorC]>0)
+	{}
+	motor[motorC]=0;
+	//trapdoor closes
+}
+
+void alignTray(int colourME)
+{
+	if (colourME< nMotorEncoder[motorA])
+	{
+		motor[motorA]=-5;
+		while (colourME < nMotorEncoder[motorA])
+	      {}
+      }
+	else
+	{
+		motor[motorA]=5;
+		while (colourME > nMotorEncoder[motorA])
+	      {}
+	}
+	//check which way to move tray relative to current position
+
+	while (colourME != nMotorEncoder[motorA])
+	{}
+	motor[motorA]=0;
+	//stops when aligned
+}
+
+void displayUpdate(int total)
+{
+
+	float timeMins=time1[T1]/60000.0;
+      float rate=total/timeMins;
+	int shortTimeMins=time1[T1]/60000;
+      eraseDisplay();
+	nxtDisplayString(0,"Blue: %d", colourCounter[1]);
+	nxtDisplayString(1,"Green: %d", colourCounter[2]);
+	nxtDisplayString(2,"Yellow: %d", colourCounter[3]);
+	nxtDisplayString(3,"Red: %d", colourCounter[4]);
+	nxtDisplayString(4,"Discard: %d", colourCounter[0]);
+	nxtDisplayString(5,"Total: %d", total);
+	nxtDisplayString(6,"Rate: %.1f g/min",rate );
+	nxtDisplayString(7,"Time: %d:%.1f", shortTimeMins,
+      (timeMins - shortTimeMins)*60);
+	//display of all information about sorting process
+}
+
+int colourEncoder ()
+{
+	if(SensorValue[S1]!=SensorValue[S2])
+	{
+		do
+		{
+			wait1Msec(5000);
+			//waits 5 seconds for ball to reach sensors
+			if(SensorValue[S1]!=SensorValue[S2])
+			{
+				eraseDisplay();
+				nxtDisplayString(0,"BALL NOT RECIEVED");
+				nxtDisplayString(1,"CHECK FOR JAM");
+				nxtDisplayString(2, "PUSH ANY BUTTON");
+				nxtDisplayString(3, "ONCE FIXED");
+				nxtDisplayString(4, "TO CONTINUE");
+				nxtDisplayString(5, "HOLD TOUCH SENSOR");
+				nxtDisplayString(4, "TO STOP SORTING");
+				//if ball is still not read, error message is 
+                        //displayed with instructions
+				wait1Msec(2000);
+				//time to read instructions
+				if(SensorValue[S4]==1)
+					return 100;
+					//if user wants to stop sorting
+				while(nNxtButtonPressed == -1)
+				{}
+				//otherwise waits for user to fix jam and press          
+                        //button to continue
+			}
+		}while(SensorValue[S1]!=SensorValue[S2]);
+		//loops untill ball is read
+	}
+	for (int i =0; i<5;i++)
+  	{
+    	      if (i==(SensorValue[S1]-1))
+     	  	colourCounter[i]++;
+     	      //adds one to the colour count once ball is read
+      }
+	if(SensorValue[S1]==6)
+		return 0;
+		//if ball is white needs to go to discard, encoder value of 0
+	else
+		return (SensorValue[S1]-1)*85;
+	//encoder conversion factor for encoder value to align tray
+}
+
+task main()
+{
+	int total=0;
+	nMotorEncoder[motorA]=0;
+	nMotorEncoder[motorB]=0;
+	nMotorEncoder[motorC]=0;
+	SensorType[S3]=sensorSONAR;
+	SensorType[S1]=sensorCOLORFULL;
+	SensorType[S2]=sensorCOLORFULL;
+	SensorType[S4]=sensorTouch;
+	int const MAX = 25;
+	//maximum capacity of box
+	int colourME;
+	//initialization of variables and sensors
+
+	nxtDisplayString(0, "Welcome,");
+	nxtDisplayString(1, "Put gumballs");
+	nxtDisplayString(2, "in box above");
+	nxtDisplayString(3, "Swipe hand");
+	nxtDisplayString(4, "to begin");
+	nxtDisplayString(5, "Hold touch");
+	nxtDisplayString(6, "sensor to stop");
+	nxtDisplayString(7, "sorting");
+	//welcome screen and instructions to start
+
+	while(SensorValue[S3]>16)
+	{}
+	time1[T1]=0;
+	//waits for wave, starts timer
+
+	motor[motorC]=5;
+	while (nMotorEncoder[motorC]<25)
+	{}
+ 	motor[motorC]=-7;
+ 	while (nMotorEncoder[motorC]>0)
+ 	{}
+ 	motor[motorC]=0;
+	//trapdoor to release first ball
+
+  	while(total<=MAX)
+  	{
+  		colourME=colourEncoder();
+  		if(colourME==100)
+  		//return value of 100 when user presses touch sensor
+  		{
+  			nxtDisplayString(0, "FINAL REPORT");
+  			wait1Msec(500);
+  			displayUpdate(total);
+  			total=100;
+  			//reasign varible total to exit while loop
+  		}
+  		else
+    	      {
+    	            total++;
+    	            //add one to total number of gumballs sorted
+			alignTray(colourME);
+			// aligns the tray with the corresponding colour
+
+			gumballRelease();
+			// release gumball into tray, release next gumball into              
+                  //chute
+
+			displayUpdate(total);
+			//display to screen updated information
+		}
+  	}
+  	wait1Msec(10000);
+  	//gives time to read last report
+  	eraseDisplay();
+  	nxtDisplayString(0, "Swipe hand to end");
+  	while(SensorValue[S3]>16)
+      {}
+      //waits for wave
+  	nxtDisplayString(0, "Goodbye");
+  	wait1Msec(1000);
+}
